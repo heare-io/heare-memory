@@ -1,6 +1,6 @@
 ## 2025-06-14
 
-I've been having some more thoughts on memory, and have started a new project heare-memory to capture *specifically* global long term memory. We're preserving the file-tree concept, and will implement it atop git/github for simplicity to get started. 
+I've been having some more thoughts on memory, and have started a new project heare-memory to capture *specifically* global long term memory. We're preserving the file-tree concept, and will implement it atop git/github for simplicity to get started.
 
 I'm thinking now of 3 tiers of memory: session, project, and global.
 
@@ -22,4 +22,4 @@ Global memory will also enable implicit *reads*, where observed interactions sur
 
 1. agent passes contents of turn to memory for observation
 2. memory accepts contents for ingestion, responds with semantic search results across all of memory (limit some reasonable N)
-3. agent tracks N results over time, performs RRF to keep a manageable M (&lt;N) results as part of conversational context. 
+3. agent tracks N results over time, performs RRF to keep a manageable M (&lt;N) results as part of conversational context.

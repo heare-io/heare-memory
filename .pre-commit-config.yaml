@@ -1,0 +1,107 @@
+# Pre-commit hooks configuration for heare-memory project
+# See https://pre-commit.com for more information
+
+repos:
+  # Pre-commit hooks for common issues
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        description: Remove trailing whitespace
+      - id: end-of-file-fixer
+        description: Ensure files end with newline
+      - id: check-yaml
+        description: Check YAML syntax
+      - id: check-toml
+        description: Check TOML syntax
+      - id: check-json
+        description: Check JSON syntax
+      - id: check-merge-conflict
+        description: Check for merge conflict markers
+      - id: check-added-large-files
+        description: Prevent adding large files
+        args: ['--maxkb=1000']
+      - id: check-case-conflict
+        description: Check for case conflicts
+      - id: check-executables-have-shebangs
+        description: Check executables have shebangs
+      - id: check-shebang-scripts-are-executable
+        description: Check shebang scripts are executable
+      - id: debug-statements
+        description: Check for debugger imports
+      - id: fix-byte-order-marker
+        description: Remove UTF-8 byte order marker
+
+  # Python code formatting and linting
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.13
+    hooks:
+      - id: ruff
+        name: ruff-lint
+        description: Run ruff linter
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+        name: ruff-format
+        description: Run ruff formatter
+
+  # Remove unused imports and variables
+  - repo: https://github.com/PyCQA/autoflake
+    rev: v2.3.1
+    hooks:
+      - id: autoflake
+        name: autoflake
+        description: Remove unused imports and variables
+        args:
+          - --in-place
+          - --remove-all-unused-imports
+          - --remove-unused-variables
+          - --remove-duplicate-keys
+          - --ignore-init-module-imports
+
+  # Type checking
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.16.0
+    hooks:
+      - id: mypy
+        name: mypy
+        description: Run mypy type checker
+        additional_dependencies: 
+          - types-requests
+          - types-PyYAML
+        args: [--ignore-missing-imports, --check-untyped-defs]
+
+  # Security linting
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.0
+    hooks:
+      - id: bandit
+        name: bandit
+        description: Run bandit security linter
+        args: [-c, pyproject.toml]
+        additional_dependencies: ["bandit[toml]"]
+
+  # Markdown linting
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.42.0
+    hooks:
+      - id: markdownlint
+        name: markdownlint
+        description: Lint markdown files
+        args: [--fix]
+
+# Global configuration
+default_language_version:
+  python: python3.12
+
+# CI configuration
+ci:
+  autofix_commit_msg: |
+    [pre-commit.ci] auto fixes from pre-commit hooks
+
+    for more information, see https://pre-commit.ci
+  autofix_prs: true
+  autoupdate_branch: ''
+  autoupdate_commit_msg: '[pre-commit.ci] pre-commit autoupdate'
+  autoupdate_schedule: weekly
+  skip: []
+  submodules: false

@@ -6,7 +6,7 @@ A RESTful memory service that provides persistent storage for agents with automa
 
 The Heare Memory Global Service implements the "global" tier of a three-tier memory architecture:
 - **Session**: Task-specific, may not persist beyond session
-- **Project**: Curated by humans/agents, project-specific  
+- **Project**: Curated by humans/agents, project-specific
 - **Global**: Cross-project concepts, multi-agent accessible, implicit interaction model
 
 This service provides:

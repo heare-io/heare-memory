@@ -12,8 +12,7 @@ from . import __version__
 
 # Set up logging
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -56,11 +55,7 @@ def create_app() -> FastAPI:
     @app.get("/health")
     async def health_check() -> dict[str, str]:
         """Basic health check endpoint."""
-        return {
-            "status": "healthy",
-            "version": __version__,
-            "service": "heare-memory"
-        }
+        return {"status": "healthy", "version": __version__, "service": "heare-memory"}
 
     return app
 
@@ -68,12 +63,7 @@ def create_app() -> FastAPI:
 def main() -> None:
     """Main entry point for the application."""
     app = create_app()
-    uvicorn.run(
-        app,
-        host="0.0.0.0",
-        port=8000,
-        log_level="info"
-    )
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
 
 
 if __name__ == "__main__":

@@ -22,20 +22,20 @@ dependencies = [
     # Core web framework
     "fastapi>=0.104.0",
     "uvicorn[standard]>=0.24.0",
-    
+
     # Configuration and data validation
     "pydantic>=2.5.0",
     "pydantic-settings>=2.1.0",
-    
+
     # Git operations
     "gitpython>=3.1.40",
-    
+
     # File operations and utilities
     "aiofiles>=23.2.1",
-    
+
     # HTTP client for git operations
     "httpx>=0.25.0",
-    
+
     # Async utilities
     "asyncio-mqtt>=0.13.0",
 ]
@@ -47,17 +47,17 @@ dev = [
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.12.0",
-    
+
     # Code quality
     "ruff>=0.1.0",
     "autoflake>=2.2.0",
     "pre-commit>=3.5.0",
-    
+
     # Development tools
     "mypy>=1.7.0",
     "black>=23.11.0",
     "isort>=5.12.0",
-    
+
     # Documentation
     "mkdocs>=1.5.0",
     "mkdocs-material>=9.4.0",
@@ -163,6 +163,18 @@ exclude_lines = [
     "if __name__ == .__main__.:",
     "if TYPE_CHECKING:",
 ]
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+skips = ["B101", "B601"]  # Skip assert_used and shell_injection_subprocess_popen_with_shell_equals_true
+
+[tool.autoflake]
+check = false
+in-place = true
+remove-all-unused-imports = true
+remove-unused-variables = true
+remove-duplicate-keys = true
+ignore-init-module-imports = true
 
 [dependency-groups]
 dev = [

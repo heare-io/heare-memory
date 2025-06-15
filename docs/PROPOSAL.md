@@ -384,4 +384,3 @@ export SERVICE_HOST="0.0.0.0"          # default: 0.0.0.0
 5. Service handles concurrent requests safely
 6. Read-only mode works without GITHUB_TOKEN
 7. All operations are auditable via git history
-

@@ -8,7 +8,7 @@ This document outlines the complete implementation plan for the Heare Memory Glo
 
 The Heare Memory Global Service implements the "global" tier of a three-tier memory architecture:
 - **Session**: Task-specific, may not persist beyond session
-- **Project**: Curated by humans/agents, project-specific (AGENTS.md concept)  
+- **Project**: Curated by humans/agents, project-specific (AGENTS.md concept)
 - **Global**: Cross-project concepts, multi-agent accessible, implicit interaction model
 
 This project focuses **exclusively** on the global memory service implementation.
@@ -157,7 +157,7 @@ This project focuses **exclusively** on the global memory service implementation
 - Handle hierarchical directory structure
 - Include optional content in responses
 
-#### Search Infrastructure  
+#### Search Infrastructure
 - Create ripgrep wrapper with grep fallback
 - Implement search query validation and sanitization
 - Add context line support around matches
@@ -211,7 +211,7 @@ This project focuses **exclusively** on the global memory service implementation
 
 ---
 
-## Phase 4: Production Features  
+## Phase 4: Production Features
 
 **Goal**: Performance optimization, observability, and production readiness
 **Timeline**: Week 3
@@ -447,7 +447,7 @@ This implementation plan is **provisional** and will be updated based on:
 
 **Plan Revision Process**:
 - After Phase 1 completion: Review and adjust Phase 2 and 3 plans
-- After Phase 2 completion: Finalize Phase 3 and review Phase 4-5 plans  
+- After Phase 2 completion: Finalize Phase 3 and review Phase 4-5 plans
 - Continuous: Update individual issues based on implementation learnings
 
 **Key Decision Points**:
