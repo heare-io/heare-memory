@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 
 from git import Repo
+from git.exc import GitCommandError
 
 from .config import settings
 from .models.git import (
@@ -473,3 +474,40 @@ class GitManager:
             raise GitRepositoryError(
                 f"Failed to get repository status: {exc}", "get_repository_status"
             ) from exc
+
+    async def get_file_sha(self, file_path: str) -> str | None:
+        """
+        Get the git SHA for a specific file.
+
+        Args:
+            file_path: Path to the file relative to repository root
+
+        Returns:
+            str | None: Git SHA of the file's last commit, or None if file not in git
+
+        Raises:
+            GitRepositoryError: If there's an error accessing git
+        """
+        try:
+            repo = Repo(self.repository_path)
+
+            # Check if there are any commits
+            if not repo.heads:
+                return None
+
+            # Try to get the file's last commit
+            try:
+                commits = list(repo.iter_commits(paths=file_path, max_count=1))
+                if commits:
+                    return commits[0].hexsha
+                else:
+                    # File might be new/uncommitted
+                    return None
+            except GitCommandError:
+                # File might not exist in git
+                return None
+
+        except Exception as exc:
+            logger.error(f"Failed to get file SHA for {file_path}: {exc}")
+            # Don't raise exception, return None for missing SHA
+            return None

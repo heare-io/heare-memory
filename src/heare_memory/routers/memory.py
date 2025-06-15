@@ -1,27 +1,111 @@
 """Memory CRUD endpoints router."""
 
+import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+
+from ..dependencies import get_memory_service
+from ..models.memory import MemoryNode
+from ..path_utils import PathValidationError, sanitize_path
+from ..services.memory_service import MemoryNotFoundError, MemoryService, MemoryServiceError
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/memory", tags=["memory"])
 
 
-@router.get("/{path:path}")
-async def get_memory_node(path: str) -> dict[str, Any]:
-    """Get a memory node by path.
+@router.get("/{path:path}", response_model=MemoryNode)
+async def get_memory_node(
+    path: str,
+    request: Request,
+    response: Response,
+    memory_service: MemoryService = Depends(get_memory_service),
+) -> MemoryNode:
+    """
+    Get a memory node by path.
 
     Args:
-        path: The memory node path
+        path: The memory node path (without .md extension)
+        request: FastAPI request object
+        response: FastAPI response object
+        memory_service: Injected memory service
 
     Returns:
-        dict: Memory node data
+        MemoryNode with content and metadata
 
     Raises:
-        HTTPException: If memory node not found
+        HTTPException: 400 for invalid paths, 404 if not found, 500 for internal errors
     """
-    # TODO: Implement memory node retrieval
-    raise HTTPException(status_code=501, detail="Not implemented yet")
+    logger.info(f"GET /memory/{path} - Request from {request.client}")
+
+    try:
+        # Sanitize the path to ensure it has .md extension and is safe
+        sanitized_path = sanitize_path(path)
+        logger.debug(f"Sanitized path: {path} -> {sanitized_path}")
+
+        # Get the memory node
+        memory_node = await memory_service.get_memory_node(sanitized_path)
+
+        # Set HTTP headers
+        response.headers["X-Git-SHA"] = memory_node.metadata.sha
+        response.headers["Last-Modified"] = memory_node.metadata.updated_at.strftime(
+            "%a, %d %b %Y %H:%M:%S GMT"
+        )
+
+        # Create ETag from SHA and size
+        etag = f'"{memory_node.metadata.sha}-{memory_node.metadata.size}"'
+        response.headers["ETag"] = etag
+
+        # Set content type for markdown
+        response.headers["Content-Type"] = "application/json; charset=utf-8"
+
+        logger.info(f"Successfully retrieved memory node: {sanitized_path}")
+        return memory_node
+
+    except PathValidationError as e:
+        logger.warning(f"Invalid path provided: {path} - {e}")
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "InvalidPath",
+                "message": f"Invalid path format: {e}",
+                "path": path,
+            },
+        ) from e
+
+    except MemoryNotFoundError as e:
+        logger.info(f"Memory node not found: {path}")
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "NotFound",
+                "message": str(e),
+                "path": path,
+            },
+        ) from e
+
+    except MemoryServiceError as e:
+        logger.error(f"Memory service error for {path}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "InternalError",
+                "message": "Internal server error occurred",
+                "path": path,
+            },
+        ) from e
+
+    except Exception as e:
+        logger.error(f"Unexpected error retrieving {path}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "UnexpectedError",
+                "message": "An unexpected error occurred",
+                "path": path,
+            },
+        ) from e
 
 
 @router.put("/{path:path}")
