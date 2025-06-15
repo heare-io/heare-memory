@@ -120,7 +120,7 @@ class MemoryService:
 
             try:
                 commit_result = await self.git_manager.commit_file(path, commit_message)
-                git_sha = commit_result.sha
+                git_sha = commit_result.commit_sha
             except Exception as e:
                 logger.warning(f"Failed to commit {path} to git: {e}")
                 git_sha = "uncommitted"
@@ -174,7 +174,7 @@ class MemoryService:
 
             try:
                 commit_result = await self.git_manager.commit_file(path, commit_message)
-                git_sha = commit_result.sha
+                git_sha = commit_result.commit_sha
             except Exception as e:
                 logger.warning(f"Failed to commit {path} to git: {e}")
                 git_sha = "uncommitted"
@@ -229,7 +229,7 @@ class MemoryService:
 
             try:
                 commit_result = await self.git_manager.commit_file(path, commit_message)
-                git_sha = commit_result.sha
+                git_sha = commit_result.commit_sha
             except Exception as e:
                 logger.warning(f"Failed to commit {path} to git: {e}")
                 git_sha = "uncommitted"
