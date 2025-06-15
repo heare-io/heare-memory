@@ -172,6 +172,16 @@ async def create_or_update_memory_node(
             )
 
         # Basic content validation
+        if len(content.strip()) == 0:  # Empty content after stripping
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "InvalidRequest",
+                    "message": "Content cannot be empty",
+                    "path": path,
+                },
+            )
+
         if len(content.encode("utf-8")) > 10_000_000:  # 10MB limit
             raise HTTPException(
                 status_code=400,

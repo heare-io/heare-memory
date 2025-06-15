@@ -149,18 +149,26 @@ class TestErrorScenarios:
 
     def test_content_edge_cases(self, integration_client: TestClient, mock_writable_settings):
         """Test edge cases in content handling."""
-        # Empty content (after stripping whitespace)
+        # Whitespace-only content gets stripped and rejected as empty
         whitespace_only = "   \n  \t  \r\n  "
         response1 = integration_client.put(
             "/memory/test/whitespace", json={"content": whitespace_only}
         )
-        # Should be rejected as empty content
+        # Should be rejected as empty after stripping
         assert response1.status_code == 400
 
-        # Content with only newlines
+        # Content with only newlines also gets stripped and rejected
         newlines_only = "\n\n\n\n\n"
         response2 = integration_client.put("/memory/test/newlines", json={"content": newlines_only})
         assert response2.status_code == 400
+
+        # However, truly empty string should be rejected
+        empty_content = ""
+        response_empty = integration_client.put(
+            "/memory/test/empty", json={"content": empty_content}
+        )
+        # Empty content should be rejected
+        assert response_empty.status_code == 400
 
         # Content at size limit boundary
         at_limit_content = "x" * 10_000_000  # Exactly 10MB
