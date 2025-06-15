@@ -159,25 +159,58 @@ uv run python -m heare_memory.main
 ## Current Implementation Status
 
 ### ✅ Completed (Phase 1 - Infrastructure)
-- Project setup with UV package management
-- FastAPI application with modular router structure
-- Git integration with full operation support
-- External tool validation and startup checks
-- Configuration management and error handling
-- Comprehensive testing framework (26 tests)
-- Pre-commit hooks and code quality automation
+- **Project Setup**: Complete UV package management with all dependencies
+- **FastAPI Application**: Modular router structure with health, memory, schema endpoints
+- **Git Integration**: Full GitManager with commit, push, batch operations, retry logic
+- **Startup Validation**: Comprehensive external tool checking (git, gh CLI, ripgrep/grep)
+- **Configuration**: Pydantic settings with environment variables and read-only mode
+- **Error Handling**: Structured error responses and comprehensive logging
+- **Testing**: 26 passing tests across git operations, startup checks, and API structure
+- **Code Quality**: Pre-commit hooks with ruff, autoflake, and formatting automation
 
-### 🔄 In Progress (Phase 2 - Core Operations)
-- Async file system operations module
-- Memory CRUD endpoint implementations
-- Search functionality with ripgrep/grep
-- Batch operations with atomic commits
+### 🔄 Ready for Implementation (Phase 2 - Core Operations)
+- **Memory CRUD Endpoints**: Router stubs exist, need file operations integration
+- **Async File Operations**: Need module for safe markdown file read/write/delete
+- **Search Integration**: Ripgrep/grep backends detected, need endpoint implementation
+- **Batch Operations**: Models and git support ready, need endpoint implementation
 
-### 📋 Planned (Phase 3+ - Advanced Features)
-- Semantic search and content analysis
-- Implicit observation pipeline
-- Conflict resolution for concurrent writes
-- Performance optimization and caching
+### 📋 Future Phases
+- **Semantic Search**: Content analysis and intelligent retrieval
+- **Implicit Observation**: Background memory synthesis from interactions
+- **Performance**: Caching, optimization, and scaling considerations
+
+## Critical Implementation Notes
+
+### Issue Tracking Integration
+- Uses Linear/Plane for issue management
+- 7 major issues completed in Phase 1 (HEARE-2 through HEARE-10)
+- Issues can be queried, updated, and commented on during development
+- Next high-priority issues: HEARE-5, HEARE-11, HEARE-12, HEARE-13, HEARE-14, HEARE-15
+
+### Git Workflow Established
+- Work directly on `main` branch (no feature branches for this project)
+- All commits include comprehensive messages with context
+- Pre-commit hooks enforce code quality automatically
+- Test coverage tracking without enforcement threshold
+
+### Key Architecture Decisions
+- **GitManager**: Centralized git operations with async interface and error handling
+- **State Management**: Global state in `state.py` to avoid circular imports
+- **Startup Sequence**: Comprehensive validation before service accepts requests
+- **Configuration**: Environment-driven with sensible defaults and validation
+- **Error Philosophy**: Structured responses with actionable error messages
+
+### Testing Philosophy
+- Infrastructure code has 66% coverage (appropriate for foundational systems)
+- Core business logic (git operations, tool checking) has 77-94% coverage
+- Integration tests verify full workflows, unit tests cover individual components
+- Temporary directories used for git operations to avoid side effects
+
+### Memory Storage Patterns
+- All memory nodes are `.md` files with forward-slash path structure
+- Metadata included in responses (timestamps, size, git SHA)
+- Directory structure created automatically as needed
+- Git commits provide full audit trail of all changes
 
 ## Agent Interaction Patterns
 
