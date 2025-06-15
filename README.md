@@ -62,9 +62,37 @@ uv run pre-commit install
 uv run pytest
 ```
 
-4. Run the service in development mode:
+4. Run code quality checks:
+```bash
+# Run all pre-commit hooks manually
+uv run pre-commit run --all-files
+
+# Run specific tools
+uv run ruff check                # Linting
+uv run ruff format              # Formatting
+uv run pytest                   # Tests with coverage
+```
+
+5. Run the service in development mode:
 ```bash
 uv run python -m heare_memory.main
+```
+
+#### Pre-commit Hooks
+
+The project uses pre-commit hooks to ensure code quality:
+
+- **ruff**: Python linting and formatting
+- **autoflake**: Remove unused imports and variables
+- **trailing-whitespace**: Remove trailing whitespace
+- **end-of-file-fixer**: Ensure files end with newline
+- **check-yaml/toml/json**: Validate configuration files
+- **check-merge-conflict**: Prevent committing merge conflicts
+- **debug-statements**: Prevent committing debug statements
+
+Hooks run automatically on `git commit`. To run manually:
+```bash
+uv run pre-commit run --all-files
 ```
 
 ## Configuration

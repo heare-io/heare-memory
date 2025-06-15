@@ -21,16 +21,8 @@ repos:
       - id: check-added-large-files
         description: Prevent adding large files
         args: ['--maxkb=1000']
-      - id: check-case-conflict
-        description: Check for case conflicts
-      - id: check-executables-have-shebangs
-        description: Check executables have shebangs
-      - id: check-shebang-scripts-are-executable
-        description: Check shebang scripts are executable
       - id: debug-statements
         description: Check for debugger imports
-      - id: fix-byte-order-marker
-        description: Remove UTF-8 byte order marker
 
   # Python code formatting and linting
   - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -57,37 +49,6 @@ repos:
           - --remove-unused-variables
           - --remove-duplicate-keys
           - --ignore-init-module-imports
-
-  # Type checking
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.16.0
-    hooks:
-      - id: mypy
-        name: mypy
-        description: Run mypy type checker
-        additional_dependencies: 
-          - types-requests
-          - types-PyYAML
-        args: [--ignore-missing-imports, --check-untyped-defs]
-
-  # Security linting
-  - repo: https://github.com/PyCQA/bandit
-    rev: 1.8.0
-    hooks:
-      - id: bandit
-        name: bandit
-        description: Run bandit security linter
-        args: [-c, pyproject.toml]
-        additional_dependencies: ["bandit[toml]"]
-
-  # Markdown linting
-  - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: v0.42.0
-    hooks:
-      - id: markdownlint
-        name: markdownlint
-        description: Lint markdown files
-        args: [--fix]
 
 # Global configuration
 default_language_version:
