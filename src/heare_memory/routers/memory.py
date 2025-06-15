@@ -108,22 +108,158 @@ async def get_memory_node(
         ) from e
 
 
-@router.put("/{path:path}")
-async def create_or_update_memory_node(path: str, content: dict[str, Any]) -> dict[str, Any]:
-    """Create or update a memory node.
+@router.put("/{path:path}", response_model=MemoryNode, status_code=200)
+async def create_or_update_memory_node(
+    path: str,
+    request_body: dict[str, Any],
+    request: Request,
+    response: Response,
+    memory_service: MemoryService = Depends(get_memory_service),
+) -> MemoryNode:
+    """
+    Create or update a memory node.
 
     Args:
-        path: The memory node path
-        content: Memory node content
+        path: The memory node path (without .md extension)
+        request_body: JSON body with "content" field
+        request: FastAPI request object
+        response: FastAPI response object
+        memory_service: Injected memory service
 
     Returns:
-        dict: Updated memory node data
+        MemoryNode with content and metadata
 
     Raises:
-        HTTPException: If operation fails
+        HTTPException: 400 for invalid content, 403 for read-only mode, 500 for internal errors
     """
-    # TODO: Implement memory node creation/update
-    raise HTTPException(status_code=501, detail="Not implemented yet")
+    logger.info(f"PUT /memory/{path} - Request from {request.client}")
+
+    try:
+        # Check if service is in read-only mode
+        from ..config import settings
+
+        if settings.is_read_only:
+            logger.warning(f"Write attempt blocked - service in read-only mode: {path}")
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "ReadOnlyMode",
+                    "message": "Service is in read-only mode",
+                    "path": path,
+                },
+            )
+
+        # Validate request body
+        if not isinstance(request_body, dict) or "content" not in request_body:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "InvalidRequest",
+                    "message": "Request body must contain 'content' field",
+                    "path": path,
+                },
+            )
+
+        content = request_body["content"]
+        if not isinstance(content, str):
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "InvalidContent",
+                    "message": "Content must be a string",
+                    "path": path,
+                },
+            )
+
+        # Basic content validation
+        if len(content.encode("utf-8")) > 10_000_000:  # 10MB limit
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "ContentTooLarge",
+                    "message": "Content exceeds maximum size limit (10MB)",
+                    "path": path,
+                },
+            )
+
+        # Sanitize the path to ensure it has .md extension and is safe
+        sanitized_path = sanitize_path(path)
+        logger.debug(f"Sanitized path: {path} -> {sanitized_path}")
+
+        # Create or update the memory node
+        memory_node, is_new = await memory_service.create_or_update_memory_node(
+            sanitized_path, content
+        )
+
+        # Set appropriate status code
+        if is_new:
+            response.status_code = 201
+            logger.info(f"Created new memory node: {sanitized_path}")
+        else:
+            response.status_code = 200
+            logger.info(f"Updated existing memory node: {sanitized_path}")
+
+        # Set HTTP headers
+        response.headers["X-Git-SHA"] = memory_node.metadata.sha
+        response.headers["Last-Modified"] = memory_node.metadata.updated_at.strftime(
+            "%a, %d %b %Y %H:%M:%S GMT"
+        )
+
+        # Create ETag from SHA and size
+        etag = f'"{memory_node.metadata.sha}-{memory_node.metadata.size}"'
+        response.headers["ETag"] = etag
+
+        # Set content type
+        response.headers["Content-Type"] = "application/json; charset=utf-8"
+
+        return memory_node
+
+    except PathValidationError as e:
+        logger.warning(f"Invalid path provided: {path} - {e}")
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "InvalidPath",
+                "message": f"Invalid path format: {e}",
+                "path": path,
+            },
+        ) from e
+
+    except MemoryServiceError as e:
+        logger.error(f"Memory service error for {path}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "InternalError",
+                "message": "Internal server error occurred",
+                "path": path,
+            },
+        ) from e
+
+    except UnicodeDecodeError as e:
+        logger.warning(f"Invalid UTF-8 content provided for {path}: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "InvalidEncoding",
+                "message": "Content must be valid UTF-8",
+                "path": path,
+            },
+        ) from e
+
+    except HTTPException:
+        # Re-raise HTTP exceptions (like 403 for read-only mode)
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error creating/updating {path}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "UnexpectedError",
+                "message": "An unexpected error occurred",
+                "path": path,
+            },
+        ) from e
 
 
 @router.delete("/{path:path}")

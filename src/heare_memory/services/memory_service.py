@@ -191,9 +191,66 @@ class MemoryService:
         except FileManagerError as e:
             logger.error(f"File manager error updating {path}: {e}")
             raise MemoryServiceError(f"Failed to update memory node: {e}") from e
+        except (MemoryServiceError, MemoryNotFoundError):
+            # Re-raise memory service exceptions as-is
+            raise
         except Exception as e:
             logger.error(f"Unexpected error updating {path}: {e}")
             raise MemoryServiceError(f"Internal error updating memory node: {e}") from e
+
+    async def create_or_update_memory_node(
+        self, path: str, content: str, commit_message: str | None = None
+    ) -> tuple[MemoryNode, bool]:
+        """
+        Create or update a memory node, returning whether it was created.
+
+        Args:
+            path: Memory path for the node
+            content: Content to write
+            commit_message: Optional git commit message
+
+        Returns:
+            Tuple of (MemoryNode, is_new) where is_new indicates if the file was created
+
+        Raises:
+            MemoryServiceError: If there's an error with the operation
+            PathValidationError: If the path is invalid
+        """
+        try:
+            # Check if file exists
+            file_exists = await self.file_manager.file_exists(path)
+
+            # Write the file
+            file_metadata = await self.file_manager.write_file(path, content)
+
+            # Create appropriate commit message
+            if commit_message is None:
+                commit_message = f"Create {path}" if not file_exists else f"Update {path}"
+
+            try:
+                commit_result = await self.git_manager.commit_file(path, commit_message)
+                git_sha = commit_result.sha
+            except Exception as e:
+                logger.warning(f"Failed to commit {path} to git: {e}")
+                git_sha = "uncommitted"
+
+            # Create metadata
+            metadata = MemoryNodeMetadata.from_file_metadata(file_metadata, git_sha)
+
+            memory_node = MemoryNode(
+                path=path,
+                content=content,
+                metadata=metadata,
+            )
+
+            return memory_node, not file_exists
+
+        except FileManagerError as e:
+            logger.error(f"File manager error creating/updating {path}: {e}")
+            raise MemoryServiceError(f"Failed to create/update memory node: {e}") from e
+        except Exception as e:
+            logger.error(f"Unexpected error creating/updating {path}: {e}")
+            raise MemoryServiceError(f"Internal error creating/updating memory node: {e}") from e
 
     async def delete_memory_node(self, path: str, commit_message: str | None = None) -> bool:
         """
@@ -288,6 +345,9 @@ class MemoryService:
         except FileManagerError as e:
             logger.error(f"File manager error getting metadata for {path}: {e}")
             raise MemoryServiceError(f"Failed to get metadata: {e}") from e
+        except (MemoryServiceError, MemoryNotFoundError):
+            # Re-raise memory service exceptions as-is
+            raise
         except Exception as e:
             logger.error(f"Unexpected error getting metadata for {path}: {e}")
             raise MemoryServiceError(f"Internal error getting metadata: {e}") from e
