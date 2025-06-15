@@ -262,18 +262,104 @@ async def create_or_update_memory_node(
         ) from e
 
 
-@router.delete("/{path:path}")
-async def delete_memory_node(path: str) -> None:
-    """Delete a memory node.
+@router.delete("/{path:path}", status_code=204)
+async def delete_memory_node(
+    path: str,
+    request: Request,
+    response: Response,
+    memory_service: MemoryService = Depends(get_memory_service),
+) -> None:
+    """
+    Delete a memory node.
 
     Args:
-        path: The memory node path
+        path: The memory node path (without .md extension)
+        request: FastAPI request object
+        response: FastAPI response object
+        memory_service: Injected memory service
+
+    Returns:
+        None (204 No Content response)
 
     Raises:
-        HTTPException: If memory node not found or operation fails
+        HTTPException: 404 if not found, 403 for read-only mode, 400 for invalid paths
     """
-    # TODO: Implement memory node deletion
-    raise HTTPException(status_code=501, detail="Not implemented yet")
+    logger.info(f"DELETE /memory/{path} - Request from {request.client}")
+
+    try:
+        # Check if service is in read-only mode
+        from ..config import settings
+
+        if settings.is_read_only:
+            logger.warning(f"Delete attempt blocked - service in read-only mode: {path}")
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "ReadOnlyMode",
+                    "message": "Service is in read-only mode",
+                    "path": path,
+                },
+            )
+
+        # Sanitize the path to ensure it has .md extension and is safe
+        sanitized_path = sanitize_path(path)
+        logger.debug(f"Sanitized path: {path} -> {sanitized_path}")
+
+        # Delete the memory node
+        deleted = await memory_service.delete_memory_node(sanitized_path)
+
+        if not deleted:
+            # File didn't exist - return 404 for idempotency
+            logger.info(f"Memory node not found for deletion: {sanitized_path}")
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "error": "NotFound",
+                    "message": f"Memory node not found: {path}",
+                    "path": path,
+                },
+            )
+
+        # Success - file was deleted
+        logger.info(f"Successfully deleted memory node: {sanitized_path}")
+        response.status_code = 204
+
+    except PathValidationError as e:
+        logger.warning(f"Invalid path provided: {path} - {e}")
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "InvalidPath",
+                "message": f"Invalid path format: {e}",
+                "path": path,
+            },
+        ) from e
+
+    except MemoryServiceError as e:
+        logger.error(f"Memory service error deleting {path}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "InternalError",
+                "message": "Internal server error occurred",
+                "path": path,
+            },
+        ) from e
+
+    except HTTPException:
+        # Re-raise HTTP exceptions (like 403 for read-only mode)
+        raise
+
+    except Exception as e:
+        logger.error(f"Unexpected error deleting {path}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "UnexpectedError",
+                "message": "An unexpected error occurred",
+                "path": path,
+            },
+        ) from e
 
 
 @router.get("/")
