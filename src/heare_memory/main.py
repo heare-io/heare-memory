@@ -12,6 +12,8 @@ from . import __version__
 from .config import settings
 from .middleware.error_handler import ErrorHandlerMiddleware
 from .routers import health, memory, schema
+from .startup import StartupError, format_startup_error, run_startup_checks
+from .state import set_git_manager, set_startup_result
 
 logger = logging.getLogger(__name__)
 
@@ -22,18 +24,27 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Startup
     settings.setup_logging()
     logger.info("Starting Heare Memory service version %s", __version__)
-    logger.info(
-        "Configuration: read_only=%s, git_configured=%s",
-        settings.is_read_only,
-        settings.git_remote_url is not None,
-    )
 
-    # Ensure memory root directory exists
-    settings.ensure_memory_root()
-    logger.info("Memory root directory: %s", settings.memory_root)
+    try:
+        # Run comprehensive startup checks
+        startup_result = await run_startup_checks()
 
-    # TODO: Add git repository initialization and checks
-    # TODO: Add external tool checks (git, gh, ripgrep)
+        # Store results in global state
+        set_git_manager(startup_result.git_manager)
+        set_startup_result(startup_result)
+
+        logger.info("Service initialized successfully")
+        if startup_result.warnings:
+            for warning in startup_result.warnings:
+                logger.warning("Startup warning: %s", warning)
+
+    except StartupError as exc:
+        error_details = format_startup_error(exc)
+        logger.error("Startup failed:\n%s", error_details)
+        raise RuntimeError(f"Service startup failed: {exc}") from exc
+    except Exception as exc:
+        logger.error("Unexpected startup error: %s", exc)
+        raise RuntimeError(f"Unexpected startup error: {exc}") from exc
 
     yield
 

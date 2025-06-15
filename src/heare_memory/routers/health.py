@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from .. import __version__
 from ..config import settings
+from ..state import get_startup_result
 
 router = APIRouter(tags=["health"])
 
@@ -16,11 +17,26 @@ async def health_check() -> dict[str, str | bool]:
         dict: Health status information including service status,
               version, read-only mode, and git configuration.
     """
-    return {
+    startup_result = get_startup_result()
+
+    # Base health info
+    health_info = {
         "status": "healthy",
         "version": __version__,
         "service": "heare-memory",
         "read_only": settings.is_read_only,
         "git_configured": settings.git_remote_url is not None,
-        "search_backend": "ripgrep",  # TODO: Detect actual backend
     }
+
+    # Add startup-specific information if available
+    if startup_result:
+        health_info["search_backend"] = startup_result.search_backend
+        health_info["read_only"] = startup_result.read_only_mode
+
+        # If there were startup warnings, mark as degraded
+        if startup_result.warnings:
+            health_info["status"] = "degraded"
+    else:
+        health_info["search_backend"] = "unknown"
+
+    return health_info
