@@ -33,6 +33,10 @@ async def health_check() -> dict[str, str | bool]:
         health_info["search_backend"] = startup_result.search_backend
         health_info["read_only"] = startup_result.read_only_mode
 
+        # Add detailed search backend status
+        if startup_result.search_backend_status:
+            health_info["search_backend_details"] = startup_result.search_backend_status
+
         # If there were startup warnings, mark as degraded
         if startup_result.warnings:
             health_info["status"] = "degraded"

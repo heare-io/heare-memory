@@ -7,6 +7,7 @@ from typing import Any
 from .config import settings
 from .external_tools import tool_checker
 from .git_manager import GitManager
+from .search_backend import search_backend
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,7 @@ class StartupResult:
     git_manager: GitManager | None = None
     read_only_mode: bool = False
     search_backend: str = "none"
+    search_backend_status: dict[str, Any] | None = None
     error_messages: list[str] | None = None
     warnings: list[str] | None = None
 
@@ -166,14 +168,29 @@ async def run_startup_checks() -> StartupResult:
         except Exception as exc:
             warnings.append(f"Git operations test failed: {exc}")
 
-    # 7. Final status
-    search_backend = tool_checker.get_search_backend_name()
+    # 7. Detect search backends
+    logger.info("Detecting search backends...")
+    try:
+        search_backends = await search_backend.detect_backends()
+        search_status = search_backend.get_backend_status()
+        logger.info(f"Search backends detected: {search_backends}")
+    except Exception as e:
+        logger.warning(f"Failed to detect search backends: {e}")
+        search_status = {
+            "ripgrep_available": False,
+            "grep_available": False,
+            "preferred_backend": None,
+            "backends_detected": False,
+        }
+
+    # 8. Final status
+    search_backend_name = tool_checker.get_search_backend_name()
 
     logger.info("Startup checks completed successfully")
     logger.info(
         "Configuration: read_only=%s, search_backend=%s, git_remote=%s",
         read_only_mode,
-        search_backend,
+        search_backend_name,
         bool(settings.git_remote_url),
     )
 
@@ -184,7 +201,8 @@ async def run_startup_checks() -> StartupResult:
         success=True,
         git_manager=git_manager,
         read_only_mode=read_only_mode,
-        search_backend=search_backend,
+        search_backend=search_backend_name,
+        search_backend_status=search_status,
         warnings=warnings if warnings else None,
     )
 
