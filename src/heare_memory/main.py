@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__
 from .config import settings
+from .middleware.auth import AuthenticationMiddleware
 from .middleware.error_handler import ErrorHandlerMiddleware
 from .routers import health, memory, schema
 from .startup import StartupError, format_startup_error, run_startup_checks
@@ -64,6 +65,9 @@ def create_app() -> FastAPI:
 
     # Add error handling middleware
     app.add_middleware(ErrorHandlerMiddleware)
+
+    # Add authentication middleware
+    app.add_middleware(AuthenticationMiddleware)
 
     # Add CORS middleware
     app.add_middleware(
