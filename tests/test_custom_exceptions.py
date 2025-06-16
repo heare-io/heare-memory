@@ -331,7 +331,8 @@ class TestSearchErrors:
         exc = InvalidSearchQueryError("*[", "invalid regex syntax")
 
         assert exc.status_code == 400
-        assert exc.details["query"] == "*["
+        assert exc.details["field"] == "query"
+        assert exc.details["invalid_value"] == "*["
         assert exc.details["reason"] == "invalid regex syntax"
         assert "Invalid search query" in exc.message
 
@@ -504,3 +505,13 @@ class TestBackwardCompatibility:
             assert exc.details["field"] == "path"
             assert exc.details["invalid_value"] == "test/path"
             assert exc.details["reason"] == "invalid format"
+
+    def test_invalid_search_query_error(self):
+        """Test InvalidSearchQueryError."""
+        exc = InvalidSearchQueryError("*[", "invalid regex syntax")
+
+        assert exc.status_code == 400
+        assert exc.details["field"] == "query"
+        assert exc.details["invalid_value"] == "*["
+        assert exc.details["reason"] == "invalid regex syntax"
+        assert "Invalid search query" in exc.message
