@@ -351,3 +351,179 @@ class MemoryService:
         except Exception as e:
             logger.error(f"Unexpected error getting metadata for {path}: {e}")
             raise MemoryServiceError(f"Internal error getting metadata: {e}") from e
+
+    async def list_memory_nodes(
+        self,
+        prefix: str | None = None,
+        delimiter: str | None = None,
+        recursive: bool = True,
+        include_content: bool = False,
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> dict:
+        """
+        List memory nodes with optional filtering and pagination.
+
+        Args:
+            prefix: Filter nodes by path prefix
+            delimiter: Delimiter for hierarchical listing (e.g., "/" for directories)
+            recursive: Include subdirectories recursively
+            include_content: Include file content in response
+            limit: Maximum number of results to return
+            offset: Number of results to skip
+
+        Returns:
+            Dict containing nodes list and metadata
+
+        Raises:
+            MemoryServiceError: If there's an error listing files
+            PathValidationError: If the prefix path is invalid
+        """
+        try:
+            # Get all memory files from file manager
+            directory_listing = await self.file_manager.list_files(
+                prefix=prefix or "", recursive=recursive
+            )
+            all_files = directory_listing.files
+
+            # Apply delimiter filtering if specified
+            if delimiter:
+                all_files = self._apply_delimiter_filtering(all_files, prefix, delimiter, recursive)
+
+            # Sort files for consistent ordering
+            all_files.sort()
+
+            # Apply pagination
+            total_count = len(all_files)
+            if limit is not None:
+                end_index = offset + limit
+                paginated_files = all_files[offset:end_index]
+            else:
+                paginated_files = all_files[offset:]
+
+            # Build response nodes
+            nodes = []
+            for file_path in paginated_files:
+                try:
+                    if include_content:
+                        # Get full memory node with content
+                        memory_node = await self.get_memory_node(file_path)
+                        nodes.append(
+                            {
+                                "path": memory_node.path,
+                                "content": memory_node.content,
+                                "metadata": {
+                                    "created_at": memory_node.metadata.created_at.isoformat(),
+                                    "updated_at": memory_node.metadata.updated_at.isoformat(),
+                                    "size": memory_node.metadata.size,
+                                    "sha": memory_node.metadata.sha,
+                                    "exists": memory_node.metadata.exists,
+                                },
+                            }
+                        )
+                    else:
+                        # Get metadata only
+                        metadata = await self.get_memory_metadata(file_path)
+                        nodes.append(
+                            {
+                                "path": file_path,
+                                "metadata": {
+                                    "created_at": metadata.created_at.isoformat(),
+                                    "updated_at": metadata.updated_at.isoformat(),
+                                    "size": metadata.size,
+                                    "sha": metadata.sha,
+                                    "exists": metadata.exists,
+                                },
+                            }
+                        )
+                except MemoryNotFoundError:
+                    # File was deleted between listing and access, skip it
+                    logger.debug(f"File {file_path} no longer exists, skipping")
+                    continue
+                except Exception as e:
+                    logger.warning(f"Error processing file {file_path}: {e}")
+                    continue
+
+            return {
+                "nodes": nodes,
+                "total_count": total_count,
+                "returned_count": len(nodes),
+                "prefix": prefix,
+                "delimiter": delimiter,
+                "recursive": recursive,
+                "include_content": include_content,
+                "limit": limit,
+                "offset": offset,
+            }
+
+        except FileManagerError as e:
+            logger.error(f"File manager error listing files: {e}")
+            raise MemoryServiceError(f"Failed to list memory nodes: {e}") from e
+        except Exception as e:
+            logger.error(f"Unexpected error listing memory nodes: {e}")
+            raise MemoryServiceError(f"Internal error listing memory nodes: {e}") from e
+
+    def _apply_delimiter_filtering(
+        self, files: list[str], prefix: str | None, delimiter: str, recursive: bool
+    ) -> list[str]:
+        """
+        Apply delimiter-based filtering for hierarchical listing.
+
+        Args:
+            files: List of file paths
+            prefix: Path prefix filter
+            delimiter: Delimiter character for hierarchy
+            recursive: Whether to include subdirectories
+
+        Returns:
+            Filtered list of file paths
+        """
+        if not delimiter:
+            return files
+
+        filtered_files = []
+        seen_prefixes = set()
+
+        for file_path in files:
+            # Remove .md extension for processing
+            working_path = file_path
+            if working_path.endswith(".md"):
+                working_path = working_path[:-3]
+
+            # Apply prefix filter if specified
+            if prefix:
+                if not working_path.startswith(prefix):
+                    continue
+                # Remove prefix for delimiter processing
+                relative_path = working_path[len(prefix) :].lstrip(delimiter)
+            else:
+                relative_path = working_path
+
+            # Handle delimiter-based hierarchy
+            if delimiter in relative_path:
+                if recursive:
+                    # Include all files in recursive mode
+                    filtered_files.append(file_path)
+                else:
+                    # In non-recursive mode, show only immediate children
+                    # Create a "directory" entry for the first delimiter
+                    first_delimiter_index = relative_path.find(delimiter)
+                    directory_name = relative_path[:first_delimiter_index]
+
+                    if prefix:
+                        if prefix.endswith(delimiter):
+                            full_prefix = f"{prefix}{directory_name}"
+                        else:
+                            full_prefix = f"{prefix}{delimiter}{directory_name}"
+                    else:
+                        full_prefix = directory_name
+
+                    if full_prefix not in seen_prefixes:
+                        seen_prefixes.add(full_prefix)
+                        # Add a synthetic directory entry
+                        filtered_files.append(f"{full_prefix}/")
+            else:
+                # File is at the current level
+                filtered_files.append(file_path)
+
+        return filtered_files

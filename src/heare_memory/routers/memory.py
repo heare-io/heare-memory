@@ -15,6 +15,148 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/memory", tags=["memory"])
 
 
+@router.get("/")
+async def list_memory_nodes(
+    prefix: str | None = None,
+    delimiter: str | None = None,
+    recursive: bool = True,
+    include_content: bool = False,
+    limit: int | None = None,
+    offset: int = 0,
+    memory_service: MemoryService = Depends(get_memory_service),
+) -> dict[str, Any]:
+    """List memory nodes with optional filtering and pagination.
+
+    Args:
+        prefix: Filter by path prefix
+        delimiter: Delimiter for hierarchical listing
+        recursive: Include subdirectories recursively
+        include_content: Include node content in response
+        limit: Maximum number of results to return
+        offset: Number of results to skip
+        memory_service: Injected memory service
+
+    Returns:
+        dict: List of memory nodes with metadata
+    """
+    # Normalize empty string to None
+    if prefix == "":
+        prefix = None
+    if delimiter == "":
+        delimiter = None
+
+    logger.info(f"GET /memory/ - prefix={prefix}, delimiter={delimiter}, recursive={recursive}")
+
+    try:
+        # Validate prefix if provided
+        if prefix and prefix.strip():
+            try:
+                from ..path_utils import validate_path
+
+                # Validate prefix by adding temporary .md extension
+                test_path = f"{prefix}/temp.md" if not prefix.endswith("/") else f"{prefix}temp.md"
+                validate_path(test_path)
+            except PathValidationError as e:
+                logger.warning(f"Invalid prefix provided: {prefix} - {e}")
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "error": "InvalidPrefix",
+                        "message": f"Invalid prefix format: {e}",
+                        "prefix": prefix,
+                    },
+                ) from e
+
+        # Validate pagination parameters
+        if limit is not None and limit < 0:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "InvalidParameter",
+                    "message": "Limit cannot be negative",
+                    "limit": limit,
+                },
+            )
+
+        if offset < 0:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "InvalidParameter",
+                    "message": "Offset cannot be negative",
+                    "offset": offset,
+                },
+            )
+
+        # List memory nodes
+        result = await memory_service.list_memory_nodes(
+            prefix=prefix,
+            delimiter=delimiter,
+            recursive=recursive,
+            include_content=include_content,
+            limit=limit,
+            offset=offset,
+        )
+
+        logger.info(f"Listed {result['returned_count']} of {result['total_count']} memory nodes")
+        return result
+
+    except PathValidationError as e:
+        logger.warning(f"Path validation error: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "InvalidPath",
+                "message": f"Invalid path format: {e}",
+                "prefix": prefix,
+            },
+        ) from e
+
+    except MemoryServiceError as e:
+        logger.error(f"Memory service error listing nodes: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "InternalError",
+                "message": "Internal server error occurred",
+                "prefix": prefix,
+            },
+        ) from e
+
+    except Exception as e:
+        logger.error(f"Unexpected error listing memory nodes: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "UnexpectedError",
+                "message": "An unexpected error occurred",
+                "prefix": prefix,
+            },
+        ) from e
+
+
+@router.get("/search")
+async def search_memory_nodes(
+    query: str,
+    prefix: str | None = None,
+    context_lines: int = 2,
+    max_results: int = 50,
+) -> dict[str, Any]:
+    """Search memory node content.
+
+    Args:
+        query: Search query (grep pattern)
+        prefix: Search within path prefix
+        context_lines: Lines of context around matches
+        max_results: Maximum number of results
+
+    Returns:
+        dict: Search results with highlighted matches
+    """
+    # TODO: Implement memory content search
+    raise HTTPException(status_code=501, detail="Not implemented yet")
+
+
 @router.get("/{path:path}", response_model=MemoryNode)
 async def get_memory_node(
     path: str,
@@ -370,47 +512,3 @@ async def delete_memory_node(
                 "path": path,
             },
         ) from e
-
-
-@router.get("/")
-async def list_memory_nodes(
-    prefix: str | None = None,
-    delimiter: str | None = None,
-    recursive: bool = True,
-    include_content: bool = False,
-) -> dict[str, Any]:
-    """List memory nodes with optional filtering.
-
-    Args:
-        prefix: Filter by path prefix
-        delimiter: Delimiter for hierarchical listing
-        recursive: Include subdirectories recursively
-        include_content: Include node content in response
-
-    Returns:
-        dict: List of memory nodes
-    """
-    # TODO: Implement memory node listing
-    raise HTTPException(status_code=501, detail="Not implemented yet")
-
-
-@router.get("/search")
-async def search_memory_nodes(
-    query: str,
-    prefix: str | None = None,
-    context_lines: int = 2,
-    max_results: int = 50,
-) -> dict[str, Any]:
-    """Search memory node content.
-
-    Args:
-        query: Search query (grep pattern)
-        prefix: Search within path prefix
-        context_lines: Lines of context around matches
-        max_results: Maximum number of results
-
-    Returns:
-        dict: Search results with highlighted matches
-    """
-    # TODO: Implement memory content search
-    raise HTTPException(status_code=501, detail="Not implemented yet")

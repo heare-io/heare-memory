@@ -199,7 +199,9 @@ class FileManager:
         file_path = resolve_memory_path(validated_path)
         return FileMetadata.from_path(file_path, validated_path)
 
-    async def list_files(self, prefix: str = "", recursive: bool = True) -> DirectoryListing:
+    async def list_files(
+        self, prefix: str | None = None, recursive: bool = True
+    ) -> DirectoryListing:
         """
         List memory files within a prefix directory.
 
@@ -213,7 +215,7 @@ class FileManager:
         Raises:
             PathValidationError: If prefix is invalid
         """
-        if prefix:
+        if prefix and prefix.strip():
             # Validate prefix (treat as directory, so no .md extension required)
             try:
                 validate_path(prefix + ".md")  # Temporary validation
@@ -222,6 +224,8 @@ class FileManager:
                 # If validation fails, try without .md
                 if ".." in prefix or prefix.startswith("/"):
                     raise PathValidationError(f"Invalid prefix: {prefix}") from None
+        else:
+            prefix = ""
 
         try:
             if recursive:
