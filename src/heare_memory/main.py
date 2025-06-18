@@ -63,8 +63,9 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # Add error handling middleware
-    app.add_middleware(ErrorHandlerMiddleware)
+    # Add error handling middleware with debug info in development
+    debug_mode = settings.log_level.upper() == "DEBUG"
+    app.add_middleware(ErrorHandlerMiddleware, include_debug_info=debug_mode)
 
     # Add authentication middleware
     app.add_middleware(AuthenticationMiddleware)

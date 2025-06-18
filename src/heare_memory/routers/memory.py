@@ -138,23 +138,228 @@ async def list_memory_nodes(
 @router.get("/search")
 async def search_memory_nodes(
     query: str,
+    request: Request,
     prefix: str | None = None,
     context_lines: int = 2,
     max_results: int = 50,
+    case_sensitive: bool = False,
+    is_regex: bool = False,
+    whole_words: bool = False,
+    timeout: float = 30.0,
+    memory_service: MemoryService = Depends(get_memory_service),
 ) -> dict[str, Any]:
-    """Search memory node content.
+    """Search memory node content across the repository.
 
     Args:
-        query: Search query (grep pattern)
-        prefix: Search within path prefix
-        context_lines: Lines of context around matches
-        max_results: Maximum number of results
+        query: Search query (pattern or regex)
+        prefix: Search within path prefix (optional)
+        context_lines: Lines of context around matches (0-10, default: 2)
+        max_results: Maximum number of file results (1-1000, default: 50)
+        case_sensitive: Whether search should be case sensitive (default: False)
+        is_regex: Whether to treat query as regex pattern (default: False)
+        whole_words: Whether to match whole words only (default: False)
+        timeout: Maximum search time in seconds (default: 30.0)
+        request: FastAPI request object
+        memory_service: Injected memory service
 
     Returns:
-        dict: Search results with highlighted matches
+        dict: Search results with highlighted matches and metadata
+
+    Raises:
+        HTTPException: 400 for invalid queries/parameters, 408 for timeouts, 500 for internal errors
     """
-    # TODO: Implement memory content search
-    raise HTTPException(status_code=501, detail="Not implemented yet")
+    logger.info(
+        f"GET /memory/search - query='{query}', prefix={prefix}, "
+        f"context_lines={context_lines}, max_results={max_results} - Request from {request.client}"
+    )
+
+    try:
+        # Validate query parameter
+        if not query or not query.strip():
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "InvalidQuery",
+                    "message": "Search query cannot be empty",
+                    "query": query,
+                },
+            )
+
+        # Validate parameter ranges
+        if context_lines < 0 or context_lines > 10:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "InvalidParameter",
+                    "message": "Context lines must be between 0 and 10",
+                    "context_lines": context_lines,
+                },
+            )
+
+        if max_results < 1 or max_results > 1000:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "InvalidParameter",
+                    "message": "Max results must be between 1 and 1000",
+                    "max_results": max_results,
+                },
+            )
+
+        if timeout < 1.0 or timeout > 120.0:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "InvalidParameter",
+                    "message": "Timeout must be between 1.0 and 120.0 seconds",
+                    "timeout": timeout,
+                },
+            )
+
+        # Normalize empty string prefix to None
+        if prefix == "":
+            prefix = None
+
+        # Validate prefix if provided
+        if prefix and prefix.strip():
+            try:
+                from ..path_utils import validate_path
+
+                # Validate prefix by adding temporary .md extension
+                test_path = f"{prefix}/temp.md" if not prefix.endswith("/") else f"{prefix}temp.md"
+                validate_path(test_path)
+            except PathValidationError as e:
+                logger.warning(f"Invalid prefix provided: {prefix} - {e}")
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "error": "InvalidPrefix",
+                        "message": f"Invalid prefix format: {e}",
+                        "prefix": prefix,
+                    },
+                ) from e
+
+        # Perform the search
+        search_summary = await memory_service.search_memory_content(
+            query=query.strip(),
+            prefix=prefix,
+            context_lines=context_lines,
+            max_results=max_results,
+            case_sensitive=case_sensitive,
+            is_regex=is_regex,
+            whole_words=whole_words,
+            timeout_seconds=timeout,
+        )
+
+        # Convert search summary to response format
+        response_data = {
+            "query": search_summary.query,
+            "results": [],
+            "total_results": search_summary.files_with_matches,
+            "total_matches": search_summary.total_matches,
+            "search_time_ms": search_summary.search_time_ms,
+            "backend_used": search_summary.backend_used,
+            "truncated": search_summary.truncated,
+            "prefix": prefix,
+            "parameters": {
+                "context_lines": context_lines,
+                "max_results": max_results,
+                "case_sensitive": case_sensitive,
+                "is_regex": is_regex,
+                "whole_words": whole_words,
+                "timeout": timeout,
+            },
+        }
+
+        # Convert search results to response format
+        for search_result in search_summary.results:
+            result_data = {
+                "path": search_result.relative_path,
+                "absolute_path": search_result.path,
+                "total_matches": search_result.total_matches,
+                "matches": [],
+            }
+
+            # Add file size if available
+            if search_result.file_size is not None:
+                result_data["file_size"] = search_result.file_size
+
+            # Convert matches
+            for match in search_result.matches:
+                match_data = {
+                    "line_number": match.line_number,
+                    "line_content": match.line_content,
+                    "highlighted_content": match.highlighted_content,
+                    "context_before": match.context_before,
+                    "context_after": match.context_after,
+                }
+
+                # Add column information if available
+                if match.column_start is not None:
+                    match_data["column_start"] = match.column_start
+                if match.column_end is not None:
+                    match_data["column_end"] = match.column_end
+
+                result_data["matches"].append(match_data)
+
+            response_data["results"].append(result_data)
+
+        logger.info(
+            f"Search completed successfully: query='{query}', "
+            f"files={search_summary.files_with_matches}, matches={search_summary.total_matches}, "
+            f"time={search_summary.search_time_ms:.1f}ms"
+        )
+
+        return response_data
+
+    except PathValidationError as e:
+        logger.warning(f"Path validation error in search: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "InvalidPath",
+                "message": f"Invalid path format: {e}",
+                "prefix": prefix,
+            },
+        ) from e
+
+    except MemoryServiceError as e:
+        # Check if this is a timeout error
+        if "timed out" in str(e).lower() or "timeout" in str(e).lower():
+            logger.warning(f"Search timeout for query '{query}': {e}")
+            raise HTTPException(
+                status_code=408,
+                detail={
+                    "error": "SearchTimeout",
+                    "message": f"Search operation timed out: {e}",
+                    "query": query,
+                    "timeout": timeout,
+                },
+            ) from e
+        else:
+            logger.error(f"Memory service error during search: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "error": "InternalError",
+                    "message": "Internal server error during search",
+                    "query": query,
+                },
+            ) from e
+
+    except HTTPException:
+        # Re-raise HTTP exceptions to preserve status codes
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error during search: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "UnexpectedError",
+                "message": "An unexpected error occurred during search",
+                "query": query,
+            },
+        ) from e
 
 
 @router.get("/{path:path}", response_model=MemoryNode)
