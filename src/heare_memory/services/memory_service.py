@@ -5,6 +5,8 @@ import logging
 from ..file_manager import FileManager, FileManagerError
 from ..git_manager import GitManager
 from ..models.memory import MemoryNode, MemoryNodeMetadata
+from ..models.search import SearchQuery, SearchSummary
+from ..search_backend import search_backend
 
 logger = logging.getLogger(__name__)
 
@@ -527,3 +529,73 @@ class MemoryService:
                 filtered_files.append(file_path)
 
         return filtered_files
+
+    async def search_memory_content(
+        self,
+        query: str,
+        prefix: str | None = None,
+        context_lines: int = 2,
+        max_results: int = 50,
+        case_sensitive: bool = False,
+        is_regex: bool = False,
+        whole_words: bool = False,
+        timeout_seconds: float = 30.0,
+    ) -> SearchSummary:
+        """
+        Search memory node content using the configured search backend.
+
+        Args:
+            query: Search pattern or regex
+            prefix: Optional path prefix to limit search scope
+            context_lines: Number of context lines around matches
+            max_results: Maximum number of file results to return
+            case_sensitive: Whether search should be case sensitive
+            is_regex: Whether to treat query as regex pattern
+            whole_words: Whether to match whole words only
+            timeout_seconds: Maximum time for search operation
+
+        Returns:
+            SearchSummary with search results and metadata
+
+        Raises:
+            MemoryServiceError: If search operation fails
+            PathValidationError: If prefix path is invalid
+        """
+        try:
+            # Validate prefix if provided
+            if prefix:
+                from ..path_utils import validate_path
+
+                # Validate prefix by adding temporary .md extension for validation
+                test_path = f"{prefix}/temp.md" if not prefix.endswith("/") else f"{prefix}temp.md"
+                validate_path(test_path)
+
+            # Create search query with validation
+            search_query = SearchQuery(
+                pattern=query,
+                is_regex=is_regex,
+                case_sensitive=case_sensitive,
+                whole_words=whole_words,
+                context_lines=context_lines,
+                max_results=max_results,
+            )
+
+            # Perform search using backend
+            search_summary = await search_backend.search_content(
+                query=search_query,
+                search_root=None,  # Use default memory root
+                prefix=prefix,
+                timeout_seconds=timeout_seconds,
+            )
+
+            logger.info(
+                f"Search completed: query='{query}', files={search_summary.files_with_matches}, "
+                f"matches={search_summary.total_matches}, "
+                f"time={search_summary.search_time_ms:.1f}ms"
+            )
+
+            return search_summary
+
+        except Exception as e:
+            logger.error(f"Memory content search failed for query '{query}': {e}")
+            raise MemoryServiceError(f"Search operation failed: {e}") from e
